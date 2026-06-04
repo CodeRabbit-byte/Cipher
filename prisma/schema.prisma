@@ -1,0 +1,72 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String       @id @default(cuid())
+  email       String       @unique
+  password    String
+  name        String?
+  houseStyle  String?
+  createdAt   DateTime     @default(now())
+  engagements Engagement[]
+}
+
+model Engagement {
+  id           String        @id @default(cuid())
+  name         String
+  clientName   String
+  clientBrief  String?
+  scope        String?
+  startDate    DateTime      @default(now())
+  endDate      DateTime?
+  status       String        @default("active")
+  forumNotes   String?
+  userId       String
+  user         User          @relation(fields: [userId], references: [id])
+  observations Observation[]
+  findings     Finding[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Observation {
+  id           String     @id @default(cuid())
+  content      String
+  source       String     @default("manual")
+  host         String?
+  status       String     @default("raw")
+  engagementId String
+  engagement   Engagement @relation(fields: [engagementId], references: [id])
+  finding      Finding?   @relation(fields: [findingId], references: [id])
+  findingId    String?
+  createdAt    DateTime   @default(now())
+}
+
+model Finding {
+  id              String        @id @default(cuid())
+  title           String
+  description     String
+  severity        String
+  cvss            Float?
+  host            String?
+  port            Int?
+  evidence        String?
+  remediationNote String?
+  cveIds          String?
+  source          String        @default("manual")
+  engagementId    String
+  engagement      Engagement    @relation(fields: [engagementId], references: [id])
+  observations    Observation[]
+  chainedWith     Finding[]     @relation("FindingChain")
+  chainedBy       Finding[]     @relation("FindingChain")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}

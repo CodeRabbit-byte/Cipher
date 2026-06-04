@@ -26,7 +26,19 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
+
+# data — evidence uploads and SQLite database
+/data/
+/prisma/data/
+
+# user-uploaded images via forum notes
+/public/uploads/
+
+# graph output and editor tooling
+/graphify-out/
+/.claude/
 
 # vercel
 .vercel
