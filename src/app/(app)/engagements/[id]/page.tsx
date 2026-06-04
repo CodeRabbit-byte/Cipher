@@ -112,6 +112,12 @@ export default async function EngagementOverviewPage({
           title="AI Forum"
           description="Ask AI about findings"
         />
+        <NavCard
+          href={`/engagements/${id}/agent`}
+          icon={<Bot className="h-5 w-5" />}
+          title="Agent"
+          description="Autonomous assistant"
+        />
         {closingSoon && (
           <NavCard
             href={`/engagements/${id}/closing`}
