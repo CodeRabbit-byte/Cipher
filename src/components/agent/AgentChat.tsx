@@ -108,6 +108,15 @@ export function AgentChat({ engagementId, engagementName }: Props) {
             return updated
           })
         }
+        const flushed = decoder.decode()
+        if (flushed) {
+          accumulated += flushed
+          setMessages((prev) => {
+            const updated = [...prev]
+            updated[updated.length - 1] = { ...assistantMsg, content: accumulated }
+            return updated
+          })
+        }
       } catch (e) {
         setMessages((prev) => {
           const updated = [...prev]

@@ -28,7 +28,12 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const body = await req.json()
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return new Response("Invalid JSON", { status: 400 })
+  }
   const parsed = bodySchema.safeParse(body)
   if (!parsed.success) return new Response("Invalid input", { status: 400 })
 
@@ -36,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = runOrchestrator(engagementId, session.user.id, messages)
-    return result.toTextStreamResponse()
+    return result.toTextStreamResponse({ headers: { "Content-Type": "text/plain; charset=utf-8" } })
   } catch (e) {
     return new Response(e instanceof Error ? e.message : "Agent error", { status: 500 })
   }

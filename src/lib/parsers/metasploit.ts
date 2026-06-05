@@ -74,12 +74,13 @@ export function parseMetasploitXml(xmlContent: string): ParseResult {
             const urlRefs = refBlocks.filter((r) => /^URL-/i.test(r)).map((r) => r.replace(/^URL-/i, ""))
             if (urlRefs.length > 0) descParts.push(`References:\n${urlRefs.join("\n")}`)
 
+            // Truncate fields to prevent unbounded DB row growth from malicious XML
             findings.push({
-              title: name,
-              description: descParts.join("\n\n") || name,
+              title: name.slice(0, 500),
+              description: (descParts.join("\n\n") || name).slice(0, 50000),
               severity,
-              host: hostname ?? ip,
-              cveIds,
+              host: (hostname ?? ip ?? "").slice(0, 500),
+              cveIds: cveIds ? cveIds.slice(0, 1000) : undefined,
               source: "metasploit",
             })
           } catch (e) {
@@ -102,12 +103,12 @@ export function parseMetasploitXml(xmlContent: string): ParseResult {
               const svcInfo = extractText(svcXml, "info")
 
               findings.push({
-                title: `Open ${proto}/${port} (${svcName}) on ${hostname}`,
-                description: svcInfo
+                title: `Open ${proto}/${port} (${svcName}) on ${hostname}`.slice(0, 500),
+                description: (svcInfo
                   ? `Service banner: ${svcInfo}${osLabel ? `\nHost OS: ${osLabel}` : ""}`
-                  : `Open service discovered${osLabel ? `\nHost OS: ${osLabel}` : ""}`,
+                  : `Open service discovered${osLabel ? `\nHost OS: ${osLabel}` : ""}`).slice(0, 50000),
                 severity: "info",
-                host: hostname ?? ip,
+                host: (hostname ?? ip ?? "").slice(0, 500),
                 port: isNaN(port as number) ? undefined : port,
                 source: "metasploit",
               })

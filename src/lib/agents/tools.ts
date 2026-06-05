@@ -57,6 +57,8 @@ export function buildAgentTools(engagementId: string, userId: string) {
           .describe("Max observations to return."),
       }),
       execute: async ({ status, limit }) => {
+        const owned = await prisma.engagement.findFirst({ where: { id: engagementId, userId } })
+        if (!owned) return { error: 'Engagement not found' }
         const observations = await prisma.observation.findMany({
           where: { engagementId, ...(status ? { status } : {}) },
           orderBy: { createdAt: "desc" },
@@ -84,6 +86,8 @@ export function buildAgentTools(engagementId: string, userId: string) {
           .describe("How this was captured."),
       }),
       execute: async ({ content, host, source }) => {
+        const owned = await prisma.engagement.findFirst({ where: { id: engagementId, userId } })
+        if (!owned) return { error: 'Engagement not found' }
         const observation = await prisma.observation.create({
           data: { content, host, source, engagementId, status: "raw" },
         })
@@ -104,15 +108,16 @@ export function buildAgentTools(engagementId: string, userId: string) {
         limit: z.number().int().min(1).max(50).default(20),
       }),
       execute: async ({ limit }) => {
+        const owned = await prisma.engagement.findFirst({ where: { id: engagementId, userId } })
+        if (!owned) return { error: 'Engagement not found' }
         const findings = await prisma.finding.findMany({
           where: { engagementId },
-          orderBy: { createdAt: "desc" },
-          take: limit,
         })
         findings.sort(
           (a, b) => (SEVERITY_RANK[a.severity] ?? 5) - (SEVERITY_RANK[b.severity] ?? 5)
         )
-        return findings.map((f) => ({
+        const limited = findings.slice(0, limit)
+        return limited.map((f) => ({
           id: f.id,
           title: f.title,
           severity: f.severity,
@@ -147,6 +152,8 @@ export function buildAgentTools(engagementId: string, userId: string) {
         cvss: z.number().min(0).max(10).optional(),
       }),
       execute: async ({ title, description, severity, host, port, evidence, remediationNote, cveIds, cvss }) => {
+        const owned = await prisma.engagement.findFirst({ where: { id: engagementId, userId } })
+        if (!owned) return { error: 'Engagement not found' }
         const finding = await prisma.finding.create({
           data: {
             title,
@@ -187,6 +194,8 @@ export function buildAgentTools(engagementId: string, userId: string) {
         cveIds: z.string().max(1000).optional(),
       }),
       execute: async ({ observationIds, title, description, severity, host, remediationNote, cveIds }) => {
+        const owned = await prisma.engagement.findFirst({ where: { id: engagementId, userId } })
+        if (!owned) return { error: 'Engagement not found' }
         const obs = await prisma.observation.findMany({
           where: { id: { in: observationIds }, engagementId },
           select: { id: true },
@@ -194,22 +203,25 @@ export function buildAgentTools(engagementId: string, userId: string) {
         if (obs.length === 0)
           return { error: "No matching observations found in this engagement" }
 
-        const finding = await prisma.finding.create({
-          data: {
-            title,
-            description,
-            severity,
-            host,
-            remediationNote,
-            cveIds,
-            engagementId,
-            source: "manual",
-            observations: { connect: obs.map((o) => ({ id: o.id })) },
-          },
-        })
-        await prisma.observation.updateMany({
-          where: { id: { in: obs.map((o) => o.id) } },
-          data: { status: "promoted", findingId: finding.id },
+        const [finding] = await prisma.$transaction(async (tx) => {
+          const createdFinding = await tx.finding.create({
+            data: {
+              title,
+              description,
+              severity,
+              host,
+              remediationNote,
+              cveIds,
+              engagementId,
+              source: "manual",
+              observations: { connect: obs.map((o) => ({ id: o.id })) },
+            },
+          })
+          await tx.observation.updateMany({
+            where: { id: { in: obs.map((o) => o.id) } },
+            data: { status: "promoted", findingId: createdFinding.id },
+          })
+          return [createdFinding]
         })
         return {
           finding: { id: finding.id, title: finding.title, severity: finding.severity },

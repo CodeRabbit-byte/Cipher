@@ -61,16 +61,17 @@ export function parseNessusFile(xmlContent: string): ParseResult {
             ?? itemXml.match(/<cvss_base_score>([\s\S]*?)<\/cvss_base_score>/)?.[1]
 
           const cvssValue = cvssBase ? parseFloat(cvssBase) : undefined
+          // Truncate fields to prevent unbounded DB row growth from malicious XML
           findings.push({
-            title: pluginName,
-            description: description.replace(/<[^>]+>/g, "").trim(),
+            title: pluginName.slice(0, 500),
+            description: description.replace(/<[^>]+>/g, "").trim().slice(0, 50000),
             severity: mapNessusRiskFactor(riskFactor),
-            host: hostName,
+            host: hostName.slice(0, 500),
             port: isNaN(port) ? undefined : port,
             cvss: cvssValue !== undefined && !isNaN(cvssValue) ? cvssValue : undefined,
-            cveIds: cveIds || undefined,
+            cveIds: cveIds ? cveIds.slice(0, 1000) : undefined,
             evidence: solution
-              ? `Remediation: ${solution.replace(/<[^>]+>/g, "").trim()}`
+              ? `Remediation: ${solution.replace(/<[^>]+>/g, "").trim()}`.slice(0, 5000)
               : undefined,
             source: "nessus",
           })

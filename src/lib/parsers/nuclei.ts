@@ -64,13 +64,14 @@ export function parseNucleiJson(jsonContent: string): ParseResult {
 
       const matchedAt = result["matched-at"] ?? result.matched
 
+      // Truncate fields to prevent unbounded DB row growth from malicious input
       findings.push({
-        title: name,
-        description: description + (matchedAt ? `\nMatched at: ${matchedAt}` : ""),
+        title: name.slice(0, 500),
+        description: (description + (matchedAt ? `\nMatched at: ${matchedAt}` : "")).slice(0, 50000),
         severity,
-        host: host ? String(host) : undefined,
+        host: host ? String(host).slice(0, 500) : undefined,
         port: isNaN(port as number) ? undefined : port,
-        cveIds,
+        cveIds: cveIds ? cveIds.slice(0, 1000) : undefined,
         source: "nuclei",
       })
     } catch {

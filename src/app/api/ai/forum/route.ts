@@ -9,31 +9,59 @@ const ContextItemSchema = z.object({
   type: z.enum(["observation", "finding"]),
   id: z.string(),
   label: z.string(),
-  content: z.string(),
+  // Cap individual content items to prevent prompt stuffing
+  content: z.string().max(20000),
   severity: z.string().optional(),
 })
 
 const MessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
-  content: z.string(),
+  // Cap per-message content
+  content: z.string().max(10000),
 })
 
 const BodySchema = z.object({
   engagementId: z.string(),
-  messages: z.array(MessageSchema).min(1),
-  contextItems: z.array(ContextItemSchema).default([]),
+  messages: z.array(MessageSchema).min(1).max(50),
+  contextItems: z.array(ContextItemSchema).default([]).max(20),
 })
+
+// ---------------------------------------------------------------------------
+// In-memory per-user rate limiter for the AI forum endpoint
+// Allows at most FORUM_MAX_REQUESTS per FORUM_WINDOW_MS per user.
+// ---------------------------------------------------------------------------
+const FORUM_WINDOW_MS = 60 * 1000 // 1 minute
+const FORUM_MAX_REQUESTS = 20
+
+const forumRequests = new Map<string, { count: number; windowStart: number }>()
+
+function isRateLimited(userId: string): boolean {
+  const now = Date.now()
+  const entry = forumRequests.get(userId)
+  if (!entry || now - entry.windowStart > FORUM_WINDOW_MS) {
+    forumRequests.set(userId, { count: 1, windowStart: now })
+    return false
+  }
+  entry.count += 1
+  if (entry.count > FORUM_MAX_REQUESTS) return true
+  return false
+}
+
+// Maximum total context content characters
+const MAX_CONTEXT_CHARS = 100000
 
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session?.user?.id) return new Response("Unauthorized", { status: 401 })
 
-  const { configured, provider } = getProviderStatus()
+  if (isRateLimited(session.user.id)) {
+    return new Response("Too many requests. Please slow down.", { status: 429 })
+  }
+
+  const { configured } = getProviderStatus()
   if (!configured) {
-    return new Response(
-      `AI provider "${provider}" is not configured. Add the API key to your .env file.`,
-      { status: 503 }
-    )
+    // Do not disclose the provider name to clients
+    return new Response("AI features are not currently available.", { status: 503 })
   }
 
   const body = await req.json()
@@ -41,6 +69,12 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return new Response("Invalid input", { status: 400 })
 
   const { engagementId, messages, contextItems } = parsed.data
+
+  // Enforce total context size cap
+  const totalContextChars = contextItems.reduce((sum, item) => sum + item.content.length, 0)
+  if (totalContextChars > MAX_CONTEXT_CHARS) {
+    return new Response("Context too large", { status: 400 })
+  }
 
   const engagement = await prisma.engagement.findFirst({
     where: { id: engagementId, userId: session.user.id },
@@ -83,6 +117,8 @@ Be direct and technical. Avoid generic security advice — tie everything back t
     })
     return result.toTextStreamResponse()
   } catch (e) {
-    return new Response(e instanceof Error ? e.message : "AI error", { status: 500 })
+    // Log the full error server-side; never expose internal details to the client
+    console.error("[ai/forum] provider error:", e)
+    return new Response("AI service temporarily unavailable.", { status: 500 })
   }
 }

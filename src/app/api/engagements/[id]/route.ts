@@ -60,20 +60,24 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const existing = await getEngagement(id, session.user.id)
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  await prisma.$transaction(async (tx) => {
-    // Null out observation→finding links so findings can be deleted
-    await tx.observation.updateMany({
-      where: { engagementId: id },
-      data: { findingId: null },
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Null out observation→finding links so findings can be deleted
+      await tx.observation.updateMany({
+        where: { engagementId: id },
+        data: { findingId: null },
+      })
+      // Delete observations
+      await tx.observation.deleteMany({ where: { engagementId: id } })
+      // Clear the self-referencing finding chain join table
+      await tx.$executeRaw`DELETE FROM "_FindingChain" WHERE A IN (SELECT id FROM "Finding" WHERE "engagementId" = ${id}) OR B IN (SELECT id FROM "Finding" WHERE "engagementId" = ${id})`
+      // Delete findings
+      await tx.finding.deleteMany({ where: { engagementId: id } })
+      // Now safe to delete the engagement
+      await tx.engagement.delete({ where: { id } })
     })
-    // Delete observations
-    await tx.observation.deleteMany({ where: { engagementId: id } })
-    // Clear the self-referencing finding chain join table
-    await tx.$executeRaw`DELETE FROM "_FindingChain" WHERE A IN (SELECT id FROM "Finding" WHERE "engagementId" = ${id}) OR B IN (SELECT id FROM "Finding" WHERE "engagementId" = ${id})`
-    // Delete findings
-    await tx.finding.deleteMany({ where: { engagementId: id } })
-    // Now safe to delete the engagement
-    await tx.engagement.delete({ where: { id } })
-  })
+  } catch {
+    return NextResponse.json({ error: "Failed to delete engagement" }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

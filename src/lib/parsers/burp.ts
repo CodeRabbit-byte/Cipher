@@ -45,11 +45,12 @@ export function parseBurpXml(xmlContent: string): ParseResult {
 
         const resolvedSeverity = mapSeverity(severity)
 
+        // Truncate fields to prevent unbounded DB row growth from malicious XML
         findings.push({
-          title: name.trim(),
-          description: detail.replace(/<[^>]+>/g, "").trim(),
+          title: name.trim().slice(0, 500),
+          description: detail.replace(/<[^>]+>/g, "").trim().slice(0, 50000),
           severity: resolvedSeverity,
-          host: host ? `${host}${path}` : undefined,
+          host: host ? `${host}${path}`.slice(0, 500) : undefined,
           source: "burp",
         })
       } catch (e) {

@@ -33,12 +33,12 @@ export function SummaryEditor({ value, onChange }: Props) {
 
   useEffect(() => {
     if (editor && value !== editor.getText()) {
-      editor.commands.setContent(
-        value
-          .split("\n\n")
-          .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-          .join("")
-      )
+      // Insert AI-generated text as plain text, not raw HTML.
+      // Using clearContent + insertContent with a plain string prevents
+      // stored XSS from prompt-injected HTML in AI responses. TipTap's
+      // insertContent treats a plain string as text (not markup).
+      editor.commands.clearContent()
+      editor.commands.insertContent(value)
     }
   }, [value, editor])
 

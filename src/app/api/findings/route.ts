@@ -5,7 +5,7 @@ import { z } from "zod"
 
 const createSchema = z.object({
   title: z.string().min(1).max(500),
-  description: z.string().min(1),
+  description: z.string().min(1).max(50000),
   severity: z.enum(["critical", "high", "medium", "low", "info"]),
   engagementId: z.string().cuid(),
   cvss: z.number().min(0).max(10).optional().nullable(),
@@ -75,6 +75,22 @@ export async function POST(req: NextRequest) {
     where: { id: findingData.engagementId, userId: session.user.id },
   })
   if (!engagement) return NextResponse.json({ error: "Engagement not found" }, { status: 404 })
+
+  // IDOR guard: verify every supplied observationId belongs to the authenticated
+  // user's engagement before linking. Without this check an attacker could supply
+  // observation IDs from another user's engagement and corrupt their records.
+  if (observationIds?.length) {
+    const ownedCount = await prisma.observation.count({
+      where: {
+        id: { in: observationIds },
+        engagementId: findingData.engagementId,
+        engagement: { userId: session.user.id },
+      },
+    })
+    if (ownedCount !== observationIds.length) {
+      return NextResponse.json({ error: "Invalid observation IDs" }, { status: 403 })
+    }
+  }
 
   const finding = await prisma.finding.create({
     data: {
