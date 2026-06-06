@@ -14,8 +14,15 @@ const createSchema = z.object({
   evidence: z.string().max(5000).optional().nullable(),
   remediationNote: z.string().max(5000).optional().nullable(),
   cveIds: z.string().max(1000).optional().nullable(),
-  source: z.enum(["manual", "burp", "nmap", "nuclei", "nessus"]).default("manual"),
+  source: z
+    .enum(["manual", "burp", "nmap", "nuclei", "nessus", "metasploit", "threatassessor"])
+    .default("manual"),
   observationIds: z.array(z.string().cuid()).optional(),
+  mitreIds: z.string().max(2000).optional().nullable(),
+  mitreMitigations: z.string().max(2000).optional().nullable(),
+  sspControls: z.string().max(2000).optional().nullable(),
+  taConfidence: z.number().min(0).max(1).optional().nullable(),
+  attackPath: z.string().max(1000).optional().nullable(),
 })
 
 export async function GET(req: NextRequest) {
@@ -77,8 +84,7 @@ export async function POST(req: NextRequest) {
   if (!engagement) return NextResponse.json({ error: "Engagement not found" }, { status: 404 })
 
   // IDOR guard: verify every supplied observationId belongs to the authenticated
-  // user's engagement before linking. Without this check an attacker could supply
-  // observation IDs from another user's engagement and corrupt their records.
+  // user's engagement before linking.
   if (observationIds?.length) {
     const ownedCount = await prisma.observation.count({
       where: {
@@ -92,9 +98,45 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // When promoting ThreatAssessor observations, inherit TA fields from the
+  // observation if they were not explicitly provided in the request body.
+  let taFieldOverrides: {
+    mitreIds?: string | null
+    mitreMitigations?: string | null
+    sspControls?: string | null
+    taConfidence?: number | null
+    attackPath?: string | null
+  } = {}
+
+  if (observationIds?.length && !findingData.mitreIds) {
+    const taObs = await prisma.observation.findFirst({
+      where: {
+        id: { in: observationIds },
+        source: "threatassessor",
+      },
+      select: {
+        mitreIds: true,
+        mitreMitigations: true,
+        sspControls: true,
+        taConfidence: true,
+        attackPath: true,
+      },
+    })
+    if (taObs) {
+      taFieldOverrides = {
+        mitreIds: taObs.mitreIds,
+        mitreMitigations: taObs.mitreMitigations,
+        sspControls: taObs.sspControls,
+        taConfidence: taObs.taConfidence,
+        attackPath: taObs.attackPath,
+      }
+    }
+  }
+
   const finding = await prisma.finding.create({
     data: {
       ...findingData,
+      ...taFieldOverrides,
       ...(observationIds?.length
         ? {
             observations: {

@@ -14,6 +14,11 @@ const updateSchema = z.object({
   remediationNote: z.string().max(5000).optional().nullable(),
   cveIds: z.string().max(1000).optional().nullable(),
   chainedWithIds: z.array(z.string().cuid()).optional(),
+  mitreIds: z.string().max(2000).optional().nullable(),
+  mitreMitigations: z.string().max(2000).optional().nullable(),
+  sspControls: z.string().max(2000).optional().nullable(),
+  taConfidence: z.number().min(0).max(1).optional().nullable(),
+  attackPath: z.string().max(1000).optional().nullable(),
 })
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

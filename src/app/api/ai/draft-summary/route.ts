@@ -100,13 +100,31 @@ export async function POST(req: NextRequest) {
     : null
   const durationDays = rawDays !== null && rawDays > 0 ? rawDays : null
 
-  const { system, user } = buildExecutiveSummaryPrompt({
+  // Fetch TA coverage counts for coverage delta section
+  let taObservationCounts: { confirmed: number; total: number } | null = null
+  if (engagement.sspProfile) {
+    const taObs = await prisma.observation.findMany({
+      where: { engagementId: parsed.data.engagementId, source: "threatassessor" },
+      select: { status: true },
+    })
+    if (taObs.length > 0) {
+      taObservationCounts = {
+        confirmed: taObs.filter((o) => o.status === "promoted").length,
+        total: taObs.length,
+      }
+    }
+  }
+
+  const { system, user } = await buildExecutiveSummaryPrompt({
     clientName: engagement.clientName,
     clientBrief: engagement.clientBrief ?? "No brief provided.",
     findings: engagement.findings as Finding[],
     findingChain: parsed.data.findingChain as FindingChainLink[],
     houseStyle: engagement.user.houseStyle ?? "",
     engagementDuration: durationDays ? `${durationDays} days` : "Duration not specified",
+    sspProfile: engagement.sspProfile,
+    architectureName: engagement.architectureName,
+    taObservationCounts,
   })
 
   try {

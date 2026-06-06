@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     : null
   const durationDays = rawDays !== null && rawDays > 0 ? rawDays : null
 
-  const { system, user } = buildPurpleTeamPrompt(
+  const { system, user } = await buildPurpleTeamPrompt(
     {
       clientName: engagement.clientName,
       clientBrief: engagement.clientBrief ?? "No brief provided.",
@@ -105,6 +105,8 @@ export async function POST(req: NextRequest) {
       findings: engagement.findings as any,
       findingChain: findingChain as any,
       engagementDuration: durationDays ? `${durationDays} days` : "Duration not specified",
+      sspProfile: engagement.sspProfile,
+      architectureName: engagement.architectureName,
     },
     perspective
   )

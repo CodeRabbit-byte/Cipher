@@ -29,6 +29,19 @@ export default async function ClosingPage({
     orderBy: { createdAt: "desc" },
   })
 
+  // All ThreatAssessor predicted paths (any status) for coverage score
+  const taObservations = await prisma.observation.findMany({
+    where: { engagementId: id, source: "threatassessor" },
+    select: {
+      id: true,
+      content: true,
+      status: true,
+      mitreIds: true,
+      attackPath: true,
+    },
+    orderBy: { createdAt: "asc" },
+  })
+
   const now = new Date()
   const hoursLeft = engagement.endDate
     ? Math.floor((engagement.endDate.getTime() - now.getTime()) / (1000 * 60 * 60))
@@ -62,6 +75,13 @@ export default async function ClosingPage({
           engagementId: o.engagementId,
         }))}
         confirmedFindings={confirmedFindings}
+        taObservations={taObservations.map((o) => ({
+          id: o.id,
+          content: o.content,
+          status: o.status,
+          mitreIds: o.mitreIds,
+          attackPath: o.attackPath,
+        }))}
       />
     </div>
   )

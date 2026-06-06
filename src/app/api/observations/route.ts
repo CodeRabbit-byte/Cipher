@@ -7,7 +7,14 @@ const createSchema = z.object({
   content: z.string().min(1).max(10000),
   engagementId: z.string().cuid(),
   host: z.string().max(500).optional().nullable(),
-  source: z.enum(["manual", "burp", "nmap", "nuclei", "nessus"]).default("manual"),
+  source: z
+    .enum(["manual", "burp", "nmap", "nuclei", "nessus", "metasploit", "threatassessor"])
+    .default("manual"),
+  mitreIds: z.string().max(2000).optional().nullable(),
+  mitreMitigations: z.string().max(2000).optional().nullable(),
+  sspControls: z.string().max(2000).optional().nullable(),
+  taConfidence: z.number().min(0).max(1).optional().nullable(),
+  attackPath: z.string().max(1000).optional().nullable(),
 })
 
 export async function POST(req: NextRequest) {

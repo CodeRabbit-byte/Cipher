@@ -20,53 +20,66 @@ model User {
 }
 
 model Engagement {
-  id           String        @id @default(cuid())
-  name         String
-  clientName   String
-  clientBrief  String?
-  scope        String?
-  startDate    DateTime      @default(now())
-  endDate      DateTime?
-  status       String        @default("active")
-  forumNotes   String?
-  userId       String
-  user         User          @relation(fields: [userId], references: [id])
-  observations Observation[]
-  findings     Finding[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                String        @id @default(cuid())
+  name              String
+  clientName        String
+  clientBrief       String?
+  scope             String?
+  startDate         DateTime      @default(now())
+  endDate           DateTime?
+  status            String        @default("active")
+  forumNotes        String?
+  userId            String
+  user              User          @relation(fields: [userId], references: [id])
+  observations      Observation[]
+  findings          Finding[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  sspProfile        String?       // SSP deployment profile: low_risk_cloud | medium_risk_cloud | high_risk_cloud | on_premises | generative_ai | digital_services | sandbox
+  threatModelRunAt  DateTime?     // Timestamp of last ThreatAssessor analysis for this engagement
+  architectureName  String?       // ThreatAssessor architecture name (stem of uploaded .mmd filename)
 }
 
 model Observation {
-  id           String     @id @default(cuid())
-  content      String
-  source       String     @default("manual")
-  host         String?
-  status       String     @default("raw")
-  engagementId String
-  engagement   Engagement @relation(fields: [engagementId], references: [id])
-  finding      Finding?   @relation(fields: [findingId], references: [id])
-  findingId    String?
-  createdAt    DateTime   @default(now())
+  id               String     @id @default(cuid())
+  content          String
+  source           String     @default("manual")
+  host             String?
+  status           String     @default("raw")
+  engagementId     String
+  engagement       Engagement @relation(fields: [engagementId], references: [id])
+  finding          Finding?   @relation(fields: [findingId], references: [id])
+  findingId        String?
+  createdAt        DateTime   @default(now())
+  mitreIds         String?    // Carried from ThreatAssessor, auto-applied to Finding on promotion
+  mitreMitigations String?    // Carried from ThreatAssessor, auto-applied to Finding on promotion
+  sspControls      String?    // Carried from ThreatAssessor, auto-applied to Finding on promotion
+  taConfidence     Float?     // ThreatAssessor confidence for this predicted finding (0.0-1.0)
+  attackPath       String?    // Attack path from ThreatAssessor
 }
 
 model Finding {
-  id              String        @id @default(cuid())
-  title           String
-  description     String
-  severity        String
-  cvss            Float?
-  host            String?
-  port            Int?
-  evidence        String?
-  remediationNote String?
-  cveIds          String?
-  source          String        @default("manual")
-  engagementId    String
-  engagement      Engagement    @relation(fields: [engagementId], references: [id])
-  observations    Observation[]
-  chainedWith     Finding[]     @relation("FindingChain")
-  chainedBy       Finding[]     @relation("FindingChain")
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id               String        @id @default(cuid())
+  title            String
+  description      String
+  severity         String
+  cvss             Float?
+  host             String?
+  port             Int?
+  evidence         String?
+  remediationNote  String?
+  cveIds           String?
+  source           String        @default("manual")
+  engagementId     String
+  engagement       Engagement    @relation(fields: [engagementId], references: [id])
+  observations     Observation[]
+  chainedWith      Finding[]     @relation("FindingChain")
+  chainedBy        Finding[]     @relation("FindingChain")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  mitreIds         String?       // Comma-separated MITRE ATT&CK technique IDs e.g. "T1566.001,T1078,T1195"
+  mitreMitigations String?       // Comma-separated MITRE mitigation IDs e.g. "M1015,M1018,M1026"
+  sspControls      String?       // Comma-separated SSP control IDs e.g. "AC-3 L0,LM-3 L0,NS-7 L1"
+  taConfidence     Float?        // ThreatAssessor confidence score (0.0-1.0)
+  attackPath       String?       // Human-readable attack path string from ThreatAssessor
 }

@@ -253,7 +253,7 @@ export function buildAgentTools(engagementId: string, userId: string) {
             )
           : null
 
-        const { system, user } = buildExecutiveSummaryPrompt({
+        const { system, user } = await buildExecutiveSummaryPrompt({
           clientName: engagement.clientName,
           clientBrief: engagement.clientBrief ?? "No brief provided.",
           findings: engagement.findings as Finding[],
