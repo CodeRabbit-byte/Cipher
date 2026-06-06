@@ -40,7 +40,7 @@ Import findings directly from your tools:
 Every import goes through a **deduplication pass** — incoming findings are compared to your existing ones using cosine similarity and a vulnerability alias dictionary (e.g. "SQL injection" → "sqli"). Potential duplicates are shown side-by-side and you choose: merge, keep both, or mark as distinct. Nothing is automatic.
 
 ### Threat Model Ingest (ThreatAssessor)
-Upload a Mermaid architecture diagram (`.mmd`) and let [ThreatAssessor](https://github.com/hbhatt/ThreatAssessor) map the attack surface before testing begins.
+Upload a Mermaid architecture diagram (`.mmd`) and let [ThreatAssessor](https://github.com/BerdTan/ThreatAssessor) map the attack surface before testing begins.
 
 **How it works:**
 1. Select a Singapore Government **SSP profile** (Low Risk Cloud, Medium Risk Cloud, High Risk Cloud, On-Premises, Generative AI, Digital Services, or Sandbox) and a run mode (Fast or Full)
@@ -213,7 +213,7 @@ Set `AI_PROVIDER` in `.env` to one of the values below, then add the correspondi
 
 ## ThreatAssessor Integration
 
-CIPHER integrates with [ThreatAssessor](https://github.com/hbhatt/ThreatAssessor) — an AI-powered threat modelling engine that maps attack surfaces from architecture diagrams.
+CIPHER integrates with [ThreatAssessor](https://github.com/BerdTan/ThreatAssessor) — an AI-powered threat modelling engine that maps attack surfaces from architecture diagrams.
 
 ### How the integration works
 
@@ -274,7 +274,7 @@ Controls are classified at three levels:
 
 1. Clone and start ThreatAssessor:
    ```bash
-   git clone https://github.com/hbhatt/ThreatAssessor
+   git clone https://github.com/BerdTan/ThreatAssessor
    cd ThreatAssessor
    pip install -r requirements.txt
    uvicorn main:app --host 0.0.0.0 --port 8000
@@ -541,3 +541,4 @@ Returns a streaming text response. The system prompt is built server-side with s
 ## Collaborators
 
 - [Coderabbit-byte](https://github.com/CodeRabbit-byte)
+- [BerdTan](https://github.com/BerdTan) — ThreatAssessor integration
