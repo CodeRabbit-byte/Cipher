@@ -14,6 +14,7 @@ import { FindingChainMap } from "@/components/findings/FindingChainMap"
 import { SeverityBadge } from "@/components/findings/SeverityBadge"
 import type { FindingChainLink } from "@/types"
 import { Wand2, AlertTriangle } from "lucide-react"
+import { PurpleTeamAnalysis } from "./PurpleTeamAnalysis"
 
 interface Finding {
   id: string
@@ -138,6 +139,18 @@ export function ReportPage({ engagementId, engagementName, clientName, findings 
         )}
 
         <SummaryEditor value={summary} onChange={setSummary} />
+      </div>
+
+      <div className="border rounded-lg p-4">
+        <h2 className="text-sm font-semibold mb-1">Purple Team Analysis</h2>
+        <p className="text-xs text-muted-foreground mb-3">
+          Simultaneous red team attack paths and blue team defensive strategy
+        </p>
+        <PurpleTeamAnalysis
+          engagementId={engagementId}
+          findingChain={chains}
+          disabled={findings.length === 0}
+        />
       </div>
     </div>
   )
