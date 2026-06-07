@@ -486,6 +486,7 @@ function ReportsTab() {
 
 function ExpertReviewTab() {
   const [configured, setConfigured] = useState<boolean | null>(null)
+  const [serverDown, setServerDown] = useState(false)
   const [archs, setArchs]     = useState<ReportSummary[]>([])
   const [arch, setArch]       = useState("")
   const [criticMode, setCriticMode] = useState("sequential")
@@ -496,10 +497,9 @@ function ExpertReviewTab() {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Check if TA API is configured by trying a simple request
     fetch("/api/threatassessor/expert-review?architecture_name=__ping__")
       .then(r => r.json())
-      .then(d => setConfigured(d.configured !== false))
+      .then(d => { setConfigured(!(d.configured === false)); setServerDown(d.serverDown === true) })
       .catch(() => setConfigured(false))
     fetch("/api/threatassessor/reports").then(r => r.json()).then(d => setArchs(d.reports ?? []))
   }, [])
@@ -592,21 +592,32 @@ function ExpertReviewTab() {
               <p className="text-xs text-amber-700 mt-1">Expert Review requires the ThreatAssessor FastAPI server and an LLM API key (OpenRouter or AWS Bedrock).</p>
             </div>
           </div>
-          <div className="rounded-md bg-white border border-amber-100 p-3 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Setup</p>
+          <div className="rounded-md bg-white border border-amber-100 p-3">
             <pre className="text-xs font-mono overflow-auto whitespace-pre-wrap">{`# 1. Start ThreatAssessor API server
 cd vendor/threatassessor
 pip install -r requirements.txt
-./scripts/api/api_start.sh
+./scripts/api/api_start.sh   # or: uvicorn chatbot.api.app:app --port 8000
 
-# 2. Add to .env
+# 2. Add to CIPHER .env
 THREATASSESSOR_URL=http://localhost:8000
 THREATASSESSOR_API_KEY=any
 
 # 3. Add LLM key to vendor/threatassessor/.env
-# (OpenRouter or AWS Bedrock — see vendor/threatassessor/.env.example)
-OPENROUTER_API_KEY=sk-or-...`}</pre>
+OPENROUTER_API_KEY=sk-or-...   # free at openrouter.ai/keys`}</pre>
           </div>
+        </div>
+      ) : serverDown ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-5 space-y-3">
+          <div className="flex items-start gap-2">
+            <XCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-red-800">ThreatAssessor API server is not running</h3>
+              <p className="text-xs text-red-700 mt-1">THREATASSESSOR_URL is set but the server at <code>{process.env.NEXT_PUBLIC_TA_URL ?? "localhost:8000"}</code> is unreachable.</p>
+            </div>
+          </div>
+          <pre className="text-xs font-mono bg-white border border-red-100 rounded p-3 overflow-auto whitespace-pre-wrap">{`cd vendor/threatassessor
+./scripts/api/api_start.sh
+# or: python -m uvicorn chatbot.api.app:app --host 0.0.0.0 --port 8000`}</pre>
         </div>
       ) : (
         <div className="space-y-4">
@@ -846,12 +857,21 @@ function MitreTab() {
   const [results, setResults] = useState<MitreResult[]>([])
   const [error, setError]     = useState<string | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [dataAvailable, setDataAvailable] = useState<boolean | null>(null)
+  const [setupHint, setSetupHint] = useState<string | null>(null)
 
   const EXAMPLES: Record<typeof mode, string[]> = {
     "techniques": ["T1190", "T1059", "phishing", "lateral movement", "sql injection", "credential access"],
     "mitigations": ["M1042", "M1030", "multi-factor", "network segmentation", "patch"],
     "technique-mitigations": ["T1566", "T1078", "T1190", "T1059"],
   }
+
+  useEffect(() => {
+    fetch("/api/threatassessor/mitre?mode=status&q=_")
+      .then(r => r.json())
+      .then(d => { setDataAvailable(d.dataAvailable ?? false); if (d.setupHint) setSetupHint(d.setupHint) })
+      .catch(() => setDataAvailable(false))
+  }, [])
 
   async function search(q?: string) {
     const finalQ = q ?? query
@@ -861,7 +881,8 @@ function MitreTab() {
     try {
       const res  = await fetch(`/api/threatassessor/mitre?mode=${mode}&q=${encodeURIComponent(finalQ)}`)
       const data = await res.json()
-      if (data.error) { setError(data.error); return }
+      if (data.dataAvailable === false) { setDataAvailable(false); if (data.setupHint) setSetupHint(data.setupHint); return }
+      if (data.error && !data.results?.length) { setError(data.error); return }
       setResults(data.results ?? [])
     } catch {
       setError("Network error.")
@@ -876,10 +897,23 @@ function MitreTab() {
         <div className="flex items-start gap-2">
           <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground">
-            Queries ThreatAssessor's local MITRE ATT&amp;CK data (requires venv setup). Supports technique IDs (T1190), mitigation IDs (M1042), and keyword search. The full ATT&amp;CK corpus (enterprise-attack.json) must be present in <code className="bg-muted px-1 rounded">vendor/threatassessor/chatbot/data/</code>.
+            Queries ThreatAssessor's local MITRE ATT&amp;CK data. Supports technique IDs (T1190), mitigation IDs (M1042), and keyword search. Requires <code className="bg-muted px-1 rounded">enterprise-attack.json</code> in <code className="bg-muted px-1 rounded">vendor/threatassessor/chatbot/data/</code>.
           </p>
         </div>
       </div>
+
+      {dataAvailable === false && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-amber-800">MITRE ATT&amp;CK data not available</p>
+              <p className="text-xs text-amber-700">The 44 MB <code>enterprise-attack.json</code> corpus is not in git. Run this once to download it:</p>
+            </div>
+          </div>
+          <pre className="text-xs font-mono bg-white border border-amber-100 rounded p-3 overflow-auto whitespace-pre-wrap">{setupHint ?? `cd vendor/threatassessor\n.venv/Scripts/python.exe -c "from chatbot.modules.mitre import MitreHelper; m = MitreHelper(); m.update_data()"`}</pre>
+        </div>
+      )}
 
       <div className="flex gap-2">
         <select className="rounded-md border bg-background px-3 py-2 text-sm shrink-0" value={mode} onChange={e => { setMode(e.target.value as typeof mode); setResults([]) }}>

@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   if (!TA_URL) {
     return NextResponse.json(
-      { configured: false, error: "THREATASSESSOR_URL is not set. Start ThreatAssessor API and set the env var." },
+      { configured: false, serverDown: false, error: "THREATASSESSOR_URL is not set." },
       { status: 503 }
     )
   }
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     })
   } catch (e) {
     return NextResponse.json(
-      { error: `Could not reach ThreatAssessor API at ${TA_URL}: ${(e as Error).message}` },
+      { configured: true, serverDown: true, error: `ThreatAssessor API at ${TA_URL} is unreachable. Start the server first.` },
       { status: 502 }
     )
   }
