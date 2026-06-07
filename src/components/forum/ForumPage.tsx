@@ -641,22 +641,23 @@ export function ForumPage({ engagementId, engagementName, observations, findings
                 ) : (
                   <div className="max-w-[85%] rounded-xl px-4 py-3 text-sm bg-muted rounded-tl-sm overflow-hidden">
                     {msg.content ? (
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:mt-3 prose-headings:mb-1 prose-headings:font-semibold prose-h2:text-sm prose-h3:text-xs prose-h4:text-xs prose-li:my-0 prose-ul:my-1 prose-ol:my-1 prose-pre:bg-background/70 prose-pre:border prose-pre:text-xs prose-code:bg-background/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:font-mono prose-code:before:content-none prose-code:after:content-none prose-table:text-xs prose-td:py-1 prose-td:px-2 prose-th:py-1 prose-th:px-2 prose-blockquote:text-muted-foreground prose-blockquote:border-l-primary/50"
-                        components={{
-                          pre: ({ children }) => (
-                            <pre className="overflow-x-auto rounded-md">{children}</pre>
-                          ),
-                          table: ({ children }) => (
-                            <div className="overflow-x-auto my-2 rounded border">
-                              <table className="border-collapse w-full">{children}</table>
-                            </div>
-                          ),
-                        }}
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
+                      <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-p:leading-relaxed prose-headings:mt-3 prose-headings:mb-1 prose-headings:font-semibold prose-h2:text-sm prose-h3:text-xs prose-h4:text-xs prose-li:my-0 prose-ul:my-1 prose-ol:my-1 prose-pre:bg-background/70 prose-pre:border prose-pre:text-xs prose-code:bg-background/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:font-mono prose-code:before:content-none prose-code:after:content-none prose-table:text-xs prose-td:py-1 prose-td:px-2 prose-th:py-1 prose-th:px-2 prose-blockquote:text-muted-foreground prose-blockquote:border-l-primary/50">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            pre: ({ children }) => (
+                              <pre className="overflow-x-auto rounded-md">{children}</pre>
+                            ),
+                            table: ({ children }) => (
+                              <div className="overflow-x-auto my-2 rounded border">
+                                <table className="border-collapse w-full">{children}</table>
+                              </div>
+                            ),
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
                     ) : (
                       <span className="flex items-center gap-1.5 text-muted-foreground text-xs">
                         <Loader2 className="h-3 w-3 animate-spin" />

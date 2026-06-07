@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
       model: getModel(),
       system,
       messages: [{ role: "user", content: user }],
-      maxTokens: 2000,
+      maxOutputTokens: 2000,
       temperature: 0.3,
     })
     return result.toTextStreamResponse()

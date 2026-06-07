@@ -157,7 +157,7 @@ Be direct, specific, and technical. Tie every claim to the provided context — 
       model: getModel(),
       system: systemPrompt,
       messages,
-      maxTokens: 4000,
+      maxOutputTokens: 4000,
       temperature: 0.3,
     })
     return result.toTextStreamResponse()
