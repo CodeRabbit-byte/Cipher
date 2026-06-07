@@ -1,0 +1,3 @@
+[submodule "vendor/threatassessor"]
+	path = vendor/threatassessor
+	url = https://github.com/BerdTan/ThreatAssessor
