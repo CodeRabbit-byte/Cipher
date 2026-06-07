@@ -7,10 +7,23 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const configured = !!(
-    process.env.THREATASSESSOR_API_KEY &&
-    process.env.THREATASSESSOR_API_KEY.trim().length > 0
-  )
+  const apiKey = process.env.THREATASSESSOR_API_KEY?.trim()
+  const baseUrl = (process.env.THREATASSESSOR_URL ?? "http://localhost:8000").replace(/\/$/, "")
 
-  return NextResponse.json({ configured })
+  const configured = !!(apiKey && apiKey.length > 0)
+
+  if (!configured) {
+    return NextResponse.json({ configured: false, running: false })
+  }
+
+  // Key is present — probe the health endpoint to check if TA is actually up
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3000)
+    const res = await fetch(`${baseUrl}/health`, { signal: controller.signal })
+    clearTimeout(timeout)
+    return NextResponse.json({ configured: true, running: res.ok })
+  } catch {
+    return NextResponse.json({ configured: true, running: false })
+  }
 }

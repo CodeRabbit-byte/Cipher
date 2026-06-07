@@ -87,24 +87,44 @@ export function IngestPage({ engagementId, existingFindings }: Props) {
   const [taError, setTaError] = useState<string | null>(null)
   const [taMessage, setTaMessage] = useState(TA_MESSAGES[0])
   const [taConfigured, setTaConfigured] = useState<boolean | null>(null)
+  const [taRunning, setTaRunning] = useState<boolean | null>(null)
   const taMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const taMessageIndexRef = useRef(0)
 
-  // Check ThreatAssessor configuration on mount
+  // Poll ThreatAssessor configuration + health status
   useEffect(() => {
-    void (async () => {
+    let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+    async function check() {
       try {
         const res = await fetch("/api/ingest/threatassessor/configured")
+        if (cancelled) return
         if (res.ok) {
           const data = await res.json()
           setTaConfigured(data.configured === true)
+          setTaRunning(data.running === true)
+          // If configured but not yet running, retry in 4 s
+          if (data.configured && !data.running) {
+            retryTimer = setTimeout(check, 4000)
+          }
         } else {
           setTaConfigured(false)
+          setTaRunning(false)
         }
       } catch {
-        setTaConfigured(false)
+        if (!cancelled) {
+          setTaConfigured(false)
+          setTaRunning(false)
+        }
       }
-    })()
+    }
+
+    void check()
+    return () => {
+      cancelled = true
+      if (retryTimer) clearTimeout(retryTimer)
+    }
   }, [])
 
   function startTaMessageRotation(fullMode: boolean) {
@@ -233,6 +253,7 @@ export function IngestPage({ engagementId, existingFindings }: Props) {
       if (!res.ok) {
         if (res.status === 503 && data.error?.includes("not configured")) {
           setTaConfigured(false)
+          setTaRunning(false)
         }
         setTaError(statusToMessage(res.status, data.error ?? "Unknown error"))
         return
@@ -561,16 +582,33 @@ export function IngestPage({ engagementId, existingFindings }: Props) {
 
       <TabsContent value="threatassessor">
         {taConfigured === false ? (
+          // Key not present — user hasn't run dev:full yet
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
               <div>
-                <p className="text-sm font-medium text-amber-800">ThreatAssessor is not configured</p>
+                <p className="text-sm font-medium text-amber-800">ThreatAssessor is not running</p>
                 <p className="text-xs text-amber-700 mt-1">
-                  Add <code className="font-mono bg-amber-100 px-1 rounded">THREATASSESSOR_URL</code> and{" "}
-                  <code className="font-mono bg-amber-100 px-1 rounded">THREATASSESSOR_API_KEY</code> to
-                  your <code className="font-mono bg-amber-100 px-1 rounded">.env</code> file,
-                  then restart the dev server.
+                  Stop the current server and restart with the unified launcher:
+                </p>
+                <code className="block mt-2 text-xs font-mono bg-amber-100 text-amber-900 px-2 py-1 rounded">
+                  npm run dev:full
+                </code>
+                <p className="text-xs text-amber-600 mt-1">
+                  This starts both CIPHER and ThreatAssessor together, auto-wiring all credentials.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : taConfigured && !taRunning ? (
+          // Key present but TA process not yet reachable — starting up
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <div className="flex items-start gap-2">
+              <Loader2 className="h-4 w-4 text-blue-600 mt-0.5 shrink-0 animate-spin" />
+              <div>
+                <p className="text-sm font-medium text-blue-800">ThreatAssessor is starting…</p>
+                <p className="text-xs text-blue-700 mt-1">
+                  The server is warming up. This page will unlock automatically when it is ready.
                 </p>
               </div>
             </div>

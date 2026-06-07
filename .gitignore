@@ -40,6 +40,12 @@ yarn-error.log*
 /graphify-out/
 /.claude/
 
+# ThreatAssessor — vendored Python runtime and generated reports
+/vendor/threatassessor/.venv/
+/vendor/threatassessor/report/
+/vendor/threatassessor/.env
+/vendor/threatassessor/logs/
+
 # vercel
 .vercel
 

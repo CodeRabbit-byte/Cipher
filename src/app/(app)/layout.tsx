@@ -1,7 +1,7 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { Shield, LayoutDashboard, Crosshair, Library, LogOut, PenLine, Bot } from "lucide-react"
+import { Shield, LayoutDashboard, Crosshair, Library, LogOut, PenLine, Bot, Radar } from "lucide-react"
 import { ThemeCustomizer } from "@/components/theme/ThemeCustomizer"
 import { signOut } from "@/auth"
 
@@ -32,6 +32,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </NavLink>
           <NavLink href="/forum" icon={<Bot className="h-4 w-4" />}>
             Generating Forum
+          </NavLink>
+          <NavLink href="/threatassessor" icon={<Radar className="h-4 w-4" />}>
+            Threat Assessor
           </NavLink>
         </nav>
 

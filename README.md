@@ -1,6 +1,6 @@
 # CIPHER
 
-A capture-first engagement workspace for freelance pentesters and small security consultancies. Designed to stay out of your way while you work — quick observation capture, smart tool ingest, AI-assisted reporting, and a rich forum for detailing findings, all stored locally on your machine.
+A capture-first engagement workspace for freelance pentesters and small security consultancies. Designed to stay out of your way while you work — quick observation capture, smart tool ingest, AI-assisted reporting, a rich forum for detailing findings, native threat modelling, and a full CVE database — all stored locally on your machine.
 
 ---
 
@@ -13,6 +13,7 @@ A capture-first engagement workspace for freelance pentesters and small security
 - [Environment Variables](#environment-variables)
 - [AI Provider Setup](#ai-provider-setup)
 - [ThreatAssessor Integration](#threatassessor-integration)
+- [CVE Database](#cve-database)
 - [Project Structure](#project-structure)
 - [Data Models](#data-models)
 - [API Reference](#api-reference)
@@ -39,25 +40,32 @@ Import findings directly from your tools:
 
 Every import goes through a **deduplication pass** — incoming findings are compared to your existing ones using cosine similarity and a vulnerability alias dictionary (e.g. "SQL injection" → "sqli"). Potential duplicates are shown side-by-side and you choose: merge, keep both, or mark as distinct. Nothing is automatic.
 
-### Threat Model Ingest (ThreatAssessor)
-Upload a Mermaid architecture diagram (`.mmd`) and let [ThreatAssessor](https://github.com/BerdTan/ThreatAssessor) map the attack surface before testing begins.
+### Threat Assessor
+A native threat modelling engine built directly into CIPHER — no second server, no iframe. Upload a Mermaid architecture diagram (`.mmd`) and CIPHER runs [ThreatAssessor](https://github.com/BerdTan/ThreatAssessor) as a local Python subprocess to produce a structured threat assessment.
 
 **How it works:**
-1. Select a Singapore Government **SSP profile** (Low Risk Cloud, Medium Risk Cloud, High Risk Cloud, On-Premises, Generative AI, Digital Services, or Sandbox) and a run mode (Fast or Full)
-2. Upload your `.mmd` architecture diagram — CIPHER proxies it to ThreatAssessor's `/api/v1/analyze` endpoint
-3. ThreatAssessor returns structured predictions: MITRE ATT&CK technique IDs, mitigations, SSP control references, confidence scores, and attack paths
-4. Predictions come through the same **deduplication dialog** as all other tools — you review each one before it is stored
-5. Approved predictions are stored as **Observations** (source: `threatassessor`, status: `raw`) — not promoted Findings. The pentester tests each predicted path and promotes or archives each individually
+1. Select a Singapore Government **SSP profile** and upload a `.mmd` architecture diagram
+2. CIPHER spawns a Python subprocess calling `generate_ground_truth(use_llm=False)` — fully deterministic, no LLM or API key required
+3. Results are saved to `vendor/threatassessor/report/<arch_name>/ground_truth.json` and displayed immediately
+4. The report page shows: overall risk score, defensibility rating, RAPIDS assessment table, attack paths with MITRE ATT&CK badges, and present/missing controls
+5. Past reports are listed and can be re-opened without re-running the analysis
 
-**Coverage score:** The Closing View shows a coverage bar: confirmed findings ÷ total TA predictions. Green ≥ 70 %, amber 40–69 %, red < 40 %. Each predicted observation is listed as Confirmed / Not Tested / Archived with its MITRE ID annotation.
+**Native integration:** ThreatAssessor runs inside CIPHER's Python venv (`vendor/threatassessor/.venv/`). The first run (`npm run dev:full`) sets up the venv and installs dependencies automatically. Subsequent runs use `npm run dev` as normal.
 
-**AI enhancement:** When TA predictions are present, the executive summary and purple team analyses automatically include:
-- MITRE ATT&CK chain (technique IDs resolved to names)
-- SSP compliance gaps (unaddressed L0 mandatory controls)
-- Coverage delta (predicted vs confirmed)
-- MoE orchestrator context for red-team: blindspots, contradictions, confidence cascade, Red Team roadmap
+**Forum integration:** All ThreatAssessor reports appear as a **Threat Model** section in the AI Forum sidebar. Attack paths, RAPIDS assessment, and controls gap are each selectable as context items — injected into the AI prompt alongside observations and findings.
 
-**Requirements:** ThreatAssessor running at `THREATASSESSOR_URL` with a valid `THREATASSESSOR_API_KEY`. See [ThreatAssessor Integration](#threatassessor-integration) for setup.
+### Threat Model Ingest (ThreatAssessor via Ingest tab)
+Upload a `.mmd` diagram through the Ingest tab to have ThreatAssessor's predictions flow into the deduplication workflow:
+
+1. Select SSP profile and run mode (Fast or Full), upload `.mmd`
+2. CIPHER proxies to ThreatAssessor's `/api/v1/analyze` endpoint
+3. Predictions come through the same deduplication dialog as all other tools
+4. Approved predictions are stored as **Observations** (source: `threatassessor`, status: `raw`)
+5. The pentester tests each predicted path and promotes or archives individually
+
+**Coverage score:** The Closing View shows confirmed ÷ total TA-predicted paths (green ≥ 70%, amber 40–69%, red < 40%).
+
+**AI enhancement:** Executive summaries and purple team analyses automatically include MITRE chain, SSP compliance gaps, coverage delta, and MoE orchestrator context when TA predictions are present.
 
 ### Finding Management
 Full CRUD over confirmed findings with severity (`critical` / `high` / `medium` / `low` / `info`), CVSS score, host/port, evidence, remediation notes, and CVE IDs. Chain related findings together to model attack paths — the chain is fed directly into the AI summary prompt.
@@ -65,59 +73,62 @@ Full CRUD over confirmed findings with severity (`critical` / `high` / `medium` 
 Findings sourced from ThreatAssessor carry additional badges:
 - **MITRE ATT&CK badges** (purple) — technique IDs (e.g. `T1566.001`)
 - **SSP control badges** — colour-coded by level: red (L0 Cardinal — mandatory), amber (L1 Basic Hygiene — recommended), grey (L2 Best Practice)
-- **TA confidence pill** — green ≥ 80 %, amber ≥ 60 %, red < 60 %
+- **TA confidence pill** — green ≥ 80%, amber ≥ 60%, red < 60%
 - **Attack path** shown in the expanded card view
 
 ### Finding Library
-Cross-engagement search over every confirmed finding you've ever captured. Filter by severity, CVE, host pattern, or keyword. Use any finding as a template to pre-fill a new finding form.
+Cross-engagement search over every confirmed finding you've ever captured. Two tabs:
+
+**Findings tab** — Filter by severity, CVE, host pattern, or keyword. CVE IDs on each finding are displayed as clickable orange badges — clicking one fetches the full CVE record from NVD inline below the row (CVSS score, severity, vector string, CWE IDs, description, references) without leaving the page. Use any finding as a template to pre-fill a new finding form.
+
+**CVE Database tab** — Full NVD-powered CVE search directly in the library. Enter a CVE ID (e.g. `CVE-2021-44228`) for exact lookup, or keywords (e.g. `log4j`, `apache rce`) for broader search. Each result card shows: CVSS score + severity colour-coded by criticality, vuln status, published/modified dates, CVSS vector string, CWE IDs, full description, and up to 5 references. Results are cached in-session — repeated searches return instantly. Covers 355 000+ CVEs from 1999 to present via the NVD 2.0 API.
 
 ### Whiteboard
-A per-engagement freeform canvas for planning attack paths, mapping scope, or sketching out chains before findings are confirmed. Accessible from the sidebar under **Whiteboard** (engagement picker) or directly from any engagement overview.
+A per-engagement freeform canvas for planning attack paths, mapping scope, or sketching out chains before findings are confirmed.
 
 ### Generating Forum
 A split-panel workspace for deepening your analysis of any engagement.
 
-**Left panel — Context sidebar:**  
-Lists all observations (with status badges) and findings (with severity badges) for the engagement. Click any item to toggle it into AI context — highlighted with a blue left border. Selected count shown at the bottom.
+**Left panel — Context sidebar** (four sections, all collapsible):
+- **Observations** — all engagement observations with status badges
+- **Findings** — all engagement findings with severity badges
+- **Threat Model** — items from any ThreatAssessor reports: summary, RAPIDS assessment, individual attack paths, and controls gap. Purple `TM` badge in context chips.
+- **CVE Database** — search NVD inline from the sidebar. Selected CVEs get an orange `CVE` badge in context chips.
+
+Click any item to toggle it into AI context. All selected items are injected into the AI system prompt with type-aware formatting.
 
 **Right panel — two tabs:**
 
-- **AI Chat** — Streaming AI assistant with awareness of your selected context items. Asks about attack chains, gaps in coverage, risk narratives, or anything else. Supports quick-prompt buttons when the chat is empty. Context chips above the input show exactly what's in scope, each removable with ×.
-- **Notes** — Full rich-text editor (Tiptap) with a formatting toolbar: Undo/Redo, H1/H2/H3, Bold, Italic, Underline, Strikethrough, Bullet list, Ordered list, Blockquote, Inline code, Code block, Image upload, and Horizontal rule. **Auto-saves** 1.5 s after the last keystroke with a "Saved" indicator. Images are uploaded via `POST /api/upload` and stored in `public/uploads/`. Notes persist across sessions (stored per-engagement in the database).
+- **AI Chat** — Streaming AI assistant that renders responses as full **Markdown**: headers, tables, fenced code blocks, bold, blockquotes — all styled. The AI is instructed to:
+  - Cite CVEs with full CVE ID, CVSS v3.1 score + vector, and affected component/version
+  - Reference MITRE ATT&CK techniques with tactic context (e.g. `T1190 [Initial Access — Exploit Public-Facing Application]`)
+  - Ground every remediation in authoritative sources: NIST SP 800-53 Rev5 control IDs, CIS Controls v8 safeguards, OWASP categories, vendor hardening guides, SANS courses
+  - Label findings `[THEORETICAL]` vs `[CONFIRMED]` and never fabricate CVE numbers
+  - Use CVSS v3.1 methodology with justified scores
+
+- **Notes** — Full rich-text editor (Tiptap) with auto-save and image upload.
 
 ### AI Executive Summaries
-Generates a prose executive summary fed by your client brief, confirmed findings, finding chains, and a user-defined house style. Streams into a Tiptap rich-text editor for inline editing before export. Supports multiple AI providers — or disable entirely and write manually.
+Generates a prose executive summary fed by your client brief, confirmed findings, finding chains, and a user-defined house style. Streams into a Tiptap rich-text editor for inline editing before export.
 
-When ThreatAssessor data is present, the prompt is automatically enriched with the MITRE attack chain, SSP compliance gaps, and coverage score. Each TA API call runs with a 5 s timeout and falls back silently — generation is never blocked by TA unavailability.
+When ThreatAssessor data is present, the prompt is automatically enriched with the MITRE attack chain, SSP compliance gaps, and coverage score.
 
 ### Purple Team Analysis
-Red team and blue team AI analysis accessible from the Report page.
+Red team and blue team AI analysis from the Report page.
 
-- **Red team:** Gets MoE orchestrator context — confidence cascade, blindspots, contradictions, and the Red Team roadmap predicted by ThreatAssessor. Helps identify what the model considered high-risk but was not yet tested.
-- **Blue team:** Gets SSP L0 unaddressed controls — the mandatory controls that have no confirmed finding associated, surfacing compliance gaps for the defensive brief.
+- **Red team:** Gets MoE orchestrator context — confidence cascade, blindspots, contradictions, and the Red Team roadmap predicted by ThreatAssessor
+- **Blue team:** Gets SSP L0 unaddressed controls — mandatory controls with no confirmed finding, surfacing compliance gaps
 
 ### Report Export
 Export the edited summary as a PDF directly from the browser.
 
 ### Closing View
-Pre-deadline triage activated within 48 hours of the engagement end date.
-
-When ThreatAssessor data is present, a **coverage section** appears at the top:
-- **Coverage bar** shows confirmed ÷ total TA-predicted paths (green / amber / red)
-- Three columns: **Confirmed** (promoted to finding), **Not Tested** (still raw), **Archived** (ruled out)
-- Each entry shows the MITRE ID and attack path for quick reference
-
-Below the coverage section, untriaged observations are grouped by similarity to confirmed findings as usual.
+Pre-deadline triage activated within 48 hours of the engagement end date. When ThreatAssessor data is present, a coverage section shows confirmed ÷ total TA-predicted paths with three columns: Confirmed, Not Tested, Archived.
 
 ### Theme Customisation
-Change the app's colour scheme from the **Appearance** button in the sidebar footer.
-
 - **7 built-in presets:** Default (blue), Crimson, Ocean, Forest, Violet, Ember, Rose
-- **Image extraction:** Upload any image and the app samples the dominant hue from it and applies it as the theme — subtle tinting on surfaces only, similar to WhatsApp's wallpaper tinting
-- **Light / Dark mode toggle** — persists across sessions, flash-free (inline script in `<head>` applies the stored mode before first paint)
-
-### Engagement Lifecycle
-Track engagements through `active` → `closing` → `complete`. View a per-engagement findings distribution chart. The closing workflow flags when you're approaching deadline.
+- **Image extraction:** Upload any image and the app samples the dominant hue and applies it as the theme
+- **Light / Dark mode toggle** — flash-free, persists across sessions
 
 ---
 
@@ -133,16 +144,19 @@ Track engagements through `active` → `closing` → `complete`. View a per-enga
 | State | Zustand + TanStack Query |
 | AI | Vercel AI SDK v6 (multi-provider, streaming) |
 | Rich Text | Tiptap (ProseMirror) — StarterKit + Image + Underline |
+| Markdown | react-markdown + remark-gfm (forum AI responses) |
 | PDF | @react-pdf/renderer |
 | Validation | Zod |
+| Threat Modelling | ThreatAssessor (Python subprocess via vendor/) |
+| CVE Data | NVD 2.0 API (355 000+ CVEs, 1999–present) |
 
 ---
 
 ## Prerequisites
 
 - Node.js 18+
+- Python 3.9+ (only required if using the native Threat Assessor page)
 - No other global dependencies required
-- ThreatAssessor (optional) — Python FastAPI service for threat modelling. See [ThreatAssessor Integration](#threatassessor-integration).
 
 ---
 
@@ -154,7 +168,7 @@ cd Cipher
 cp .env.example .env
 ```
 
-Edit `.env` — at minimum set `NEXTAUTH_SECRET`. Add an AI key to enable forum chat and executive summary generation (see [AI Provider Setup](#ai-provider-setup)).
+Edit `.env` — at minimum set `NEXTAUTH_SECRET`. Add an AI key to enable forum chat and executive summary generation.
 
 ```bash
 npm install
@@ -162,15 +176,26 @@ npx prisma db push
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and register an account to get started.
+Open [http://localhost:3000](http://localhost:3000) and register an account.
 
-> The dev server binds to `127.0.0.1` only — it is not accessible on the network.
+> The dev server binds to `127.0.0.1` only — not accessible on the network.
+
+### First-time ThreatAssessor setup (native Threat Assessor page only)
+
+Run once to create the Python venv and install dependencies:
+
+```bash
+npm run dev:full
+```
+
+This creates `vendor/threatassessor/.venv/`, installs Python requirements, then starts CIPHER. After the first run, use `npm run dev` as normal — the venv persists.
 
 ### Available Scripts
 
 | Command | Description |
 |---|---|
 | `npm run dev` | Start development server (localhost only) |
+| `npm run dev:full` | First-time setup: create Python venv + install TA deps + start CIPHER |
 | `npm run build` | Build for production |
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint |
@@ -190,10 +215,11 @@ Open [http://localhost:3000](http://localhost:3000) and register an account to g
 | `GOOGLE_GENERATIVE_AI_API_KEY` | No | Required if `AI_PROVIDER=gemini` |
 | `MISTRAL_API_KEY` | No | Required if `AI_PROVIDER=mistral` |
 | `GROQ_API_KEY` | No | Required if `AI_PROVIDER=groq` |
-| `THREATASSESSOR_URL` | No | Base URL of ThreatAssessor (e.g. `http://localhost:8000`). Required to enable Threat Model tab. |
-| `THREATASSESSOR_API_KEY` | No | API key for ThreatAssessor. Required to enable Threat Model tab. Server-side only — never exposed to the browser. |
+| `THREATASSESSOR_URL` | No | Base URL of ThreatAssessor API (e.g. `http://localhost:8000`). Required for Ingest tab integration only. |
+| `THREATASSESSOR_API_KEY` | No | API key for ThreatAssessor API. Required for Ingest tab integration only. |
+| `NVD_API_KEY` | No | NIST NVD API key — free at [nvd.nist.gov/developers/request-an-api-key](https://nvd.nist.gov/developers/request-an-api-key). Without key: 5 req/30s. With key: 50 req/30s. |
 
-Leaving all AI keys blank disables the AI forum chat and executive summary features. All other features work without it.
+Leaving all AI keys blank disables AI forum chat and executive summary generation. CVE search, ThreatAssessor analysis, and all other features work without it.
 
 ---
 
@@ -213,44 +239,62 @@ Set `AI_PROVIDER` in `.env` to one of the values below, then add the correspondi
 
 ## ThreatAssessor Integration
 
-CIPHER integrates with [ThreatAssessor](https://github.com/BerdTan/ThreatAssessor) — an AI-powered threat modelling engine that maps attack surfaces from architecture diagrams.
+CIPHER includes [ThreatAssessor](https://github.com/BerdTan/ThreatAssessor) at `vendor/threatassessor/` and runs it as a **native Python subprocess** — no separate server, no second port, no iframe.
 
-### How the integration works
+### Native Threat Assessor page (`/threatassessor`)
+
+Analysis runs fully deterministically (`use_llm=False`) — no LLM or API key required.
 
 ```
-Architecture diagram (.mmd)
-         │
-         ▼
-CIPHER /api/ingest/threatassessor
-         │  (proxies to TA with 125 s timeout)
-         ▼
-ThreatAssessor /api/v1/analyze
-         │
-         ├── ground_truth.json  ← primary structured data
-         └── 07_moe_orchestrator.json  ← MoE consensus (blindspots, confidence, roadmap)
-         │
-         ▼
-Deduplication dialog (same as all other tools)
-         │
-         ▼
-Observations stored with source="threatassessor"
-  ├── mitreIds        (comma-separated: T1566.001, T1190, …)
-  ├── mitreMitigations (comma-separated: M1015, M1049, …)
-  ├── sspControls     (comma-separated: RA-L0-C1, AC-L1-C2, …)
-  ├── taConfidence    (0.0–1.0)
-  └── attackPath      (human-readable chain)
-         │
-         ▼ pentester tests during engagement
-         │
-         ▼
-Promote → Finding  (inherits all TA fields)
-Archive → ruled out
-Leave   → Not Tested (counted in coverage gap)
+.mmd file uploaded in browser
+        │
+        ▼
+POST /api/threatassessor/analyze
+        │
+        ▼
+Python subprocess: ta_analyze.py
+  → generate_ground_truth(use_llm=False)
+  → saves vendor/threatassessor/report/<arch>/ground_truth.json
+  → prints JSON to stdout
+        │
+        ▼
+Report displayed natively in CIPHER:
+  ├── Risk score + defensibility rating
+  ├── RAPIDS assessment table
+  ├── Attack paths with MITRE ATT&CK badges
+  └── Present / missing controls
 ```
+
+**First-time setup:**
+```bash
+npm run dev:full   # creates .venv, installs requirements, starts CIPHER
+```
+
+**Subsequent runs:**
+```bash
+npm run dev        # .venv already exists, no setup needed
+```
+
+### Ingest tab integration (API-based, optional)
+
+For the Ingest tab's Threat Model sub-tab, CIPHER can also proxy `.mmd` files to a running ThreatAssessor API server:
+
+```bash
+git clone https://github.com/BerdTan/ThreatAssessor
+cd ThreatAssessor
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+Set in `.env`:
+```
+THREATASSESSOR_URL=http://localhost:8000
+THREATASSESSOR_API_KEY=your_key_here
+```
+
+The Threat Model tab in Ingest appears automatically when both vars are set.
 
 ### SSP Profiles
-
-The Singapore Government [Instruction Manual 8 (IM8)](https://www.mha.gov.sg/) defines security requirements for government systems. CIPHER maps TA predictions to IM8 controls via seven SSP profiles:
 
 | Profile key | Description |
 |---|---|
@@ -270,36 +314,34 @@ Controls are classified at three levels:
 | **L1** | Basic Hygiene — strongly recommended |
 | **L2** | Best Practice — risk-accepted deferral possible |
 
-### Setup
+---
 
-1. Clone and start ThreatAssessor:
-   ```bash
-   git clone https://github.com/BerdTan/ThreatAssessor
-   cd ThreatAssessor
-   pip install -r requirements.txt
-   uvicorn main:app --host 0.0.0.0 --port 8000
-   ```
+## CVE Database
 
-2. In CIPHER's `.env`:
-   ```
-   THREATASSESSOR_URL=http://localhost:8000
-   THREATASSESSOR_API_KEY=your_key_here
-   ```
+CIPHER integrates with the **NIST National Vulnerability Database (NVD) 2.0 API** to provide access to 355 000+ CVEs from 1999 to present.
 
-3. Run `npx prisma db push` to apply the schema additions (new fields on Engagement, Finding, and Observation).
+### Where it appears
 
-4. Restart CIPHER. The **Threat Model** tab appears in Ingest when both env vars are set.
+- **Finding Library → CVE Database tab** — search by CVE ID or keyword, view full enriched cards inline
+- **Finding Library → Findings tab** — CVE IDs on findings are clickable badges that expand NVD data inline
+- **AI Forum sidebar → CVE Database section** — search and add CVEs as context items for AI analysis
 
-### Verifying field names
+### Getting an API key (optional)
 
-ThreatAssessor's `ground_truth.json` field names should be verified against a live instance before production use. Look for `// TODO-FIELDNAME` comments in [src/lib/parsers/threatassessor.ts](src/lib/parsers/threatassessor.ts) — these mark inferred field names that must be confirmed by running:
+The NVD API is free and works without a key, but is rate-limited to 5 requests per 30 seconds. A free API key raises this to 50 requests per 30 seconds:
 
-```bash
-curl -s -X POST http://localhost:8000/api/v1/analyze \
-  -H "TM-API-KEY: $THREATASSESSOR_API_KEY" \
-  -F "architecture_file=@path/to/web_app.mmd" \
-  | python3 -m json.tool
-```
+1. Visit [nvd.nist.gov/developers/request-an-api-key](https://nvd.nist.gov/developers/request-an-api-key)
+2. Enter your email — the key is sent immediately
+3. Add to `.env`: `NVD_API_KEY=your_key_here`
+
+### Data sources
+
+| Source | URL |
+|---|---|
+| NVD 2.0 API (used by CIPHER) | [nvd.nist.gov/developers/vulnerabilities](https://nvd.nist.gov/developers/vulnerabilities) |
+| Official CVE list (full JSON corpus) | [github.com/CVEProject/cvelistV5](https://github.com/CVEProject/cvelistV5) |
+| NVD CVE database (CSV/JSON) | [github.com/password123456/nvd-cve-database](https://github.com/password123456/nvd-cve-database) |
+| Python NVD wrapper | [github.com/vehemont/nvdlib](https://github.com/vehemont/nvdlib) |
 
 ---
 
@@ -310,6 +352,7 @@ src/
 ├── app/
 │   ├── (app)/                              # Authenticated app shell
 │   │   ├── dashboard/                      # Home dashboard
+│   │   ├── threatassessor/                 # Native Threat Assessor page
 │   │   ├── engagements/
 │   │   │   ├── new/                        # Create engagement
 │   │   │   └── [id]/
@@ -323,70 +366,67 @@ src/
 │   │   │       └── closing/                # Pre-deadline triage + TA coverage score
 │   │   ├── whiteboard/                     # Engagement picker → whiteboard
 │   │   ├── forum/                          # Engagement picker → forum
-│   │   └── library/                        # Cross-engagement finding search
+│   │   └── library/                        # Cross-engagement finding search + CVE database
 │   ├── api/
 │   │   ├── auth/                           # register + [...nextauth]
 │   │   ├── engagements/                    # CRUD + forum-notes
 │   │   ├── observations/                   # CRUD
 │   │   ├── findings/                       # CRUD + chain links
+│   │   ├── cve/                            # NVD 2.0 API proxy (CVE search)
 │   │   ├── ingest/
-│   │   │   ├── burp/                       # Burp Suite XML
-│   │   │   ├── nmap/                       # nmap XML
-│   │   │   ├── nuclei/                     # Nuclei JSONL
-│   │   │   ├── nessus/                     # Nessus .nessus
-│   │   │   ├── metasploit/                 # Metasploit XML
-│   │   │   └── threatassessor/             # ThreatAssessor .mmd proxy
-│   │   │       └── configured/             # GET — returns { configured: boolean }
+│   │   │   ├── burp/ nmap/ nuclei/ nessus/ metasploit/
+│   │   │   └── threatassessor/             # Proxy .mmd to TA API + parse predictions
+│   │   │       └── configured/             # GET { configured: boolean }
+│   │   ├── threatassessor/
+│   │   │   ├── analyze/                    # POST — run Python subprocess analysis
+│   │   │   └── reports/                    # GET list + GET [name] ground_truth.json
 │   │   ├── upload/                         # Image upload for forum notes
 │   │   └── ai/
-│   │       ├── draft-summary/              # Executive summary generation (async, TA-aware)
-│   │       ├── purple-team/                # Purple team streaming (TA-aware)
-│   │       └── forum/                      # Streaming forum AI chat
+│   │       ├── draft-summary/              # Executive summary generation
+│   │       ├── purple-team/                # Purple team streaming
+│   │       └── forum/                      # Streaming forum AI chat (markdown output)
 │   ├── login/
 │   └── register/
 ├── components/
 │   ├── ui/                                 # shadcn/ui primitives
 │   ├── capture/                            # Observation feed + promote dialog
-│   ├── findings/                           # Finding cards (MITRE/SSP/confidence badges), chain map, library search
+│   ├── findings/
+│   │   ├── FindingCard.tsx                 # MITRE/SSP/confidence badges
+│   │   ├── LibrarySearch.tsx               # Library tabs: Findings + CVE Database
+│   │   ├── FindingChainMap.tsx
+│   │   ├── FindingsList.tsx
+│   │   └── SeverityBadge.tsx
 │   ├── ingest/                             # Dropzone + deduplication dialog + Threat Model tab
 │   ├── report/                             # Summary editor + PDF export
 │   ├── closing/                            # Pre-closing triage view + TA coverage bar
-│   ├── whiteboard/                         # Canvas component
+│   ├── whiteboard/
 │   ├── forum/
-│   │   ├── ForumPage.tsx                   # Split-panel layout + tab switcher
+│   │   ├── ForumPage.tsx                   # Split-panel: Obs/Findings/ThreatModel/CVE sidebar + markdown AI chat
 │   │   └── ForumNotes.tsx                  # Tiptap rich-text notes editor
 │   └── theme/
-│       ├── ThemeCustomizer.tsx             # Appearance dialog (presets + image upload)
-│       └── ThemeProvider.tsx               # Applies stored theme on mount
 ├── lib/
 │   ├── ai/
-│   │   ├── provider.ts                     # Multi-provider LLM abstraction
+│   │   ├── provider.ts
 │   │   └── prompts/
-│   │       ├── executive-summary.ts        # Async prompt builder (MITRE chain, SSP gaps, coverage delta)
-│   │       └── purple-team.ts              # Async prompt builder (MoE context red / SSP gaps blue)
+│   │       ├── executive-summary.ts
+│   │       └── purple-team.ts
+│   ├── cve.ts                              # NVD 2.0 API client (CVSS extraction, type-safe)
 │   ├── parsers/
-│   │   ├── burp.ts
-│   │   ├── nmap.ts
-│   │   ├── nuclei.ts
-│   │   ├── nessus.ts
-│   │   ├── metasploit.ts
-│   │   └── threatassessor.ts               # ThreatAssessor ground_truth + MoE orchestrator parser
+│   │   ├── burp.ts / nmap.ts / nuclei.ts / nessus.ts / metasploit.ts
+│   │   └── threatassessor.ts
 │   ├── agents/
-│   │   └── tools.ts                        # Agentic tool definitions (promote, create finding, etc.)
 │   ├── dedup/
-│   │   └── findings.ts                     # Cosine similarity + alias dedup
-│   ├── theme.ts                            # Theme presets, CSS var application, image hue extraction
-│   ├── db.ts                               # Prisma client singleton
-│   └── utils.ts                            # cn() helper
-├── types/
-│   └── index.ts                            # Shared TypeScript types (SspProfile, TA fields, IngestSource)
-└── auth.ts                                 # NextAuth config
+│   ├── theme.ts
+│   ├── db.ts
+│   └── utils.ts
+scripts/
+├── start-ta.js                             # First-time setup: venv + pip install + start CIPHER
+└── ta_analyze.py                           # Python helper: calls generate_ground_truth(use_llm=False)
+vendor/
+└── threatassessor/                         # ThreatAssessor source (gitignored: .venv/, report/, .env)
 prisma/
-├── schema.prisma                           # Database schema
-└── data/
-    ├── cipher.db                           # SQLite database (gitignored)
-public/
-└── uploads/                                # Forum note images (gitignored)
+├── schema.prisma
+└── data/cipher.db                          # SQLite (gitignored)
 ```
 
 ---
@@ -413,9 +453,9 @@ public/
 | `startDate` | DateTime | Defaults to creation date |
 | `endDate` | DateTime? | Deadline — triggers closing workflow when <48 h away |
 | `status` | String | `active` \| `closing` \| `complete` |
-| `forumNotes` | String? | Tiptap JSON — persisted rich-text notes from the forum Notes tab |
-| `sspProfile` | String? | ThreatAssessor SSP profile used for this engagement |
-| `architectureName` | String? | Name of the architecture diagram uploaded to ThreatAssessor |
+| `forumNotes` | String? | Tiptap JSON — persisted rich-text notes |
+| `sspProfile` | String? | ThreatAssessor SSP profile used |
+| `architectureName` | String? | Architecture diagram name (links to TA report) |
 | `threatModelRunAt` | DateTime? | When the last ThreatAssessor run completed |
 
 ### Observation
@@ -427,25 +467,25 @@ public/
 | `host` | String? | Target host |
 | `status` | String | `raw` \| `promoted` \| `archived` |
 | `findingId` | String? | Set when promoted to a finding |
-| `mitreIds` | String? | Comma-separated MITRE ATT&CK technique IDs (TA observations only) |
-| `mitreMitigations` | String? | Comma-separated MITRE mitigation IDs (TA observations only) |
-| `sspControls` | String? | Comma-separated SSP control references (TA observations only) |
-| `taConfidence` | Float? | ThreatAssessor prediction confidence 0.0–1.0 (TA observations only) |
-| `attackPath` | String? | Human-readable attack path (TA observations only) |
+| `mitreIds` | String? | Comma-separated MITRE ATT&CK IDs (TA only) |
+| `mitreMitigations` | String? | Comma-separated MITRE mitigation IDs (TA only) |
+| `sspControls` | String? | Comma-separated SSP control references (TA only) |
+| `taConfidence` | Float? | ThreatAssessor confidence 0.0–1.0 (TA only) |
+| `attackPath` | String? | Human-readable attack path (TA only) |
 
 ### Finding
 | Field | Type | Notes |
 |---|---|---|
 | `id` | String (CUID) | Primary key |
-| `title` | String | Max 500 chars |
+| `title` | String | |
 | `description` | String | Full write-up |
 | `severity` | String | `critical` \| `high` \| `medium` \| `low` \| `info` |
 | `cvss` | Float? | CVSS score (0–10) |
 | `host` | String? | Affected host/IP |
-| `port` | Int? | Affected port (1–65535) |
-| `evidence` | String? | Max 5,000 chars |
-| `remediationNote` | String? | Fix recommendation |
-| `cveIds` | String? | Comma-separated CVE IDs |
+| `port` | Int? | Affected port |
+| `evidence` | String? | |
+| `remediationNote` | String? | |
+| `cveIds` | String? | Comma-separated CVE IDs — clickable in library with NVD enrichment |
 | `source` | String | Origin: `manual` or tool name |
 | `chainedWith` | Finding[] | Self-referencing many:many for attack chains |
 | `mitreIds` | String? | Inherited from TA observation on promotion |
@@ -468,8 +508,8 @@ All endpoints require an authenticated session except `/api/auth/*`.
 | GET | `/api/engagements/[id]` | Get engagement |
 | PATCH | `/api/engagements/[id]` | Update engagement |
 | DELETE | `/api/engagements/[id]` | Delete engagement |
-| GET | `/api/engagements/[id]/forum-notes` | Get rich-text notes for engagement |
-| POST | `/api/engagements/[id]/forum-notes` | Save rich-text notes (Tiptap JSON) |
+| GET | `/api/engagements/[id]/forum-notes` | Get rich-text notes |
+| POST | `/api/engagements/[id]/forum-notes` | Save rich-text notes |
 
 ### Observations
 | Method | Path | Description |
@@ -482,49 +522,59 @@ All endpoints require an authenticated session except `/api/auth/*`.
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/findings?engagementId=` | List findings (scoped or global library) |
-| POST | `/api/findings` | Create finding (auto-inherits TA fields if `observationIds` provided) |
+| POST | `/api/findings` | Create finding |
 | PATCH | `/api/findings/[id]` | Update finding / set chain links |
 | DELETE | `/api/findings/[id]` | Delete finding |
+
+### CVE
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/cve?q=CVE-2021-44228` | Exact CVE ID lookup via NVD 2.0 API |
+| GET | `/api/cve?q=log4j` | Keyword search — returns up to 15 results |
+
+Returns `{ cves: CveItem[], total: number }`. Each `CveItem` includes: id, description, published, lastModified, vulnStatus, cvssScore, cvssSeverity, cvssVector, cvssVersion, cweIds, references.
+
+### ThreatAssessor (native)
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/threatassessor/analyze` | Run deterministic analysis on uploaded `.mmd` file |
+| GET | `/api/threatassessor/reports` | List all saved reports |
+| GET | `/api/threatassessor/reports/[name]` | Get `ground_truth.json` for a named architecture |
+
+`POST /api/threatassessor/analyze` accepts `multipart/form-data`:
+- `architecture_file` — `.mmd` Mermaid diagram
+- `ssp_profile` — SSP profile key (default: `medium_risk_cloud`)
+
+Returns `{ success: true, data: GroundTruth, architectureName: string }`.
 
 ### Ingest
 | Method | Path | Description |
 |---|---|---|
 | POST | `/api/ingest/burp` | Parse Burp Suite XML |
-| POST | `/api/ingest/nmap` | Parse nmap XML (`-oX` output) |
+| POST | `/api/ingest/nmap` | Parse nmap XML |
 | POST | `/api/ingest/nuclei` | Parse Nuclei JSONL |
-| POST | `/api/ingest/nessus` | Parse Nessus `.nessus` export |
-| POST | `/api/ingest/metasploit` | Parse Metasploit `db_export -f xml` |
-| POST | `/api/ingest/threatassessor` | Proxy `.mmd` to ThreatAssessor, parse predictions |
-| GET | `/api/ingest/threatassessor/configured` | Returns `{ configured: boolean }` — used by UI to show/hide the Threat Model tab |
-
-All ingest endpoints return `{ findings: ParsedFinding[], parseWarnings: string[] }`.
-
-`/api/ingest/threatassessor` accepts `multipart/form-data`:
-- `file` — `.mmd` Mermaid diagram (max 10 MB)
-- `engagementId` — CUID of the target engagement
-- `sspProfile` — one of the seven SSP profile keys
-- `mode` — `fast` or `full`
+| POST | `/api/ingest/nessus` | Parse Nessus `.nessus` |
+| POST | `/api/ingest/metasploit` | Parse Metasploit XML |
+| POST | `/api/ingest/threatassessor` | Proxy `.mmd` to ThreatAssessor API, parse predictions |
+| GET | `/api/ingest/threatassessor/configured` | Returns `{ configured: boolean }` |
 
 ### Upload
 | Method | Path | Description |
 |---|---|---|
-| POST | `/api/upload` | Upload an image (JPEG/PNG/GIF/WebP/SVG, max 10 MB). Returns `{ url: string }`. |
+| POST | `/api/upload` | Upload image (JPEG/PNG/GIF/WebP/SVG, max 10 MB). Returns `{ url }`. |
 
 ### AI
 | Method | Path | Description |
 |---|---|---|
-| POST | `/api/ai/draft-summary` | Generate AI executive summary (non-streaming, TA-enriched) |
+| POST | `/api/ai/draft-summary` | Generate executive summary (non-streaming, TA-enriched) |
 | POST | `/api/ai/purple-team` | Streaming purple team analysis (red/blue, TA-enriched) |
-| POST | `/api/ai/forum` | Streaming AI forum chat with engagement context |
+| POST | `/api/ai/forum` | Streaming AI forum chat — returns Markdown, context-aware |
 
-**`/api/ai/draft-summary`** body: `{ engagementId: string, findingChain?: { from, to, explanation }[] }`  
-Returns `{ text: string }`. Returns 503 if no AI provider is configured. Appends MITRE chain, SSP compliance gaps, and coverage delta when ThreatAssessor data is present.
+**`/api/ai/forum`** body: `{ engagementId, messages, contextItems: ContextItem[] }`
 
-**`/api/ai/purple-team`** body: `{ engagementId: string, perspective: "red" | "blue", findingChain?: { from, to, explanation }[] }`  
-Returns a streaming text response. Red perspective includes MoE orchestrator context (blindspots, confidence cascade, Red Team roadmap). Blue perspective includes unaddressed SSP L0 controls.
+`ContextItem.type` is one of: `"observation"` | `"finding"` | `"threatmodel"` | `"cve"`
 
-**`/api/ai/forum`** body: `{ engagementId: string, messages: { role, content }[], contextItems: ContextItem[] }`  
-Returns a streaming text response. The system prompt is built server-side with selected observations/findings injected as context.
+The AI is instructed to output structured Markdown with proper CVE citations (CVSS v3.1, vector, affected versions), MITRE ATT&CK references with tactic context, and remediations grounded in NIST SP 800-53, CIS Controls v8, OWASP, and SANS.
 
 ---
 
@@ -532,9 +582,10 @@ Returns a streaming text response. The system prompt is built server-side with s
 
 - **Database:** SQLite at `prisma/data/cipher.db` — local only, never leaves your machine
 - **Uploaded images:** `public/uploads/` — stored on disk, gitignored
+- **ThreatAssessor reports:** `vendor/threatassessor/report/` — local only, gitignored
 - **No cloud sync:** everything stays on disk unless you deploy to a remote host
 - **Dev server:** bound to `127.0.0.1` — not exposed on the local network
-- **ThreatAssessor keys:** `THREATASSESSOR_URL` and `THREATASSESSOR_API_KEY` are server-side only — never prefixed with `NEXT_PUBLIC_`, never returned in any API response, never logged
+- **API keys:** all keys are server-side only — never prefixed with `NEXT_PUBLIC_`, never returned in any API response
 
 ---
 
